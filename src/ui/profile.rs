@@ -119,6 +119,14 @@ pub fn render_modal(ctx: &egui::Context, state: &mut AppState) {
                         });
                     });
                 }
+                
+                ui.add_space(24.0);
+                if ui.button(RichText::new("Sign Out").color(theme::RED_DANGER)).clicked() {
+                    crate::state::Session::clear();
+                    state.session = None;
+                    state.show_profile_modal = false;
+                    state.screen = crate::state::Screen::Login;
+                }
             });
         });
 }
