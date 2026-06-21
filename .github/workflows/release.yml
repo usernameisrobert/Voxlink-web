@@ -29,6 +29,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v3
+
       - uses: actions/download-artifact@v4
         with:
           name: VoxLink-Windows
@@ -39,6 +41,7 @@ jobs:
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F '"' '{print $2}')
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
+          echo "Detected version: v$VERSION"
 
       - name: Zip the executable
         run: |

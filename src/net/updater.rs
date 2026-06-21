@@ -13,6 +13,7 @@ pub fn check_for_updates(tx: mpsc::Sender<UpdaterEvent>) {
             .repo_owner("RickDeckardWebsim")
             .repo_name("Voxlink")
             .bin_name("voxlink")
+            .target("windows")
             .current_version(env!("CARGO_PKG_VERSION"))
             .build()
         {
@@ -47,6 +48,8 @@ pub fn run_update(tx: mpsc::Sender<UpdaterEvent>) {
             .repo_owner("RickDeckardWebsim")
             .repo_name("Voxlink")
             .bin_name("voxlink")
+            .target("windows")
+            .no_confirm(true)
             .show_download_progress(true)
             .current_version(env!("CARGO_PKG_VERSION"))
             .build()
