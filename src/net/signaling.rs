@@ -108,7 +108,7 @@ async fn connect_and_run(
                             let topic = format!("realtime:{}", CHANNEL);
                             let broadcast = make_broadcast(&topic, "peer_join", json!({
                                 "from": username,
-                            }));
+                            }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
                         SigCmd::SendOffer { to, sdp } => {
@@ -117,7 +117,7 @@ async fn connect_and_run(
                                 "from": username,
                                 "to": to,
                                 "sdp": sdp
-                            }));
+                            }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
                         SigCmd::SendAnswer { to, sdp } => {
@@ -126,7 +126,7 @@ async fn connect_and_run(
                                 "from": username,
                                 "to": to,
                                 "sdp": sdp
-                            }));
+                            }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
                     }
@@ -204,7 +204,9 @@ fn handle_incoming(
     }
 }
 
-fn make_broadcast(topic: &str, event: &str, payload: Value) -> String {
+fn make_broadcast(topic: &str, event: &str, payload: Value, ref_count: &mut u64) -> String {
+    let r = *ref_count;
+    *ref_count += 1;
     json!({
         "topic": topic,
         "event": "broadcast",
@@ -212,7 +214,9 @@ fn make_broadcast(topic: &str, event: &str, payload: Value) -> String {
             "type": "broadcast",
             "event": event,
             "payload": payload
-        }
+        },
+        "ref": r.to_string(),
+        "join_ref": "1"
     }).to_string()
 }
 
