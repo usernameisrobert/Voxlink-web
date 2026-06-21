@@ -18,6 +18,7 @@ pub enum SigCmd {
     SendOffer { to: String, sdp: String },
     SendAnswer { to: String, sdp: String },
     BroadcastPeerJoin,
+    BroadcastMessage(String),
     Disconnect,
 }
 
@@ -129,6 +130,14 @@ async fn connect_and_run(
                             }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
+                        SigCmd::BroadcastMessage(content) => {
+                            let topic = format!("realtime:{}", CHANNEL);
+                            let broadcast = make_broadcast(&topic, "chat_message", json!({
+                                "from": username,
+                                "content": content,
+                            }), &mut ref_count);
+                            send_text(&mut ws_stream, &broadcast).await?;
+                        }
                     }
                 } else {
                     return Ok(true);
@@ -195,6 +204,15 @@ fn handle_incoming(
                         if let Some(sdp) = b_payload["sdp"].as_str() {
                             let _ = webrtc_tx.send(SignalingMsg::Answer { from: from.to_string(), sdp: sdp.to_string() });
                         }
+                    }
+                }
+                "chat_message" => {
+                    if let Some(content) = b_payload["content"].as_str() {
+                        let _ = net_tx.send(NetEvent::MessageReceived {
+                            from: from.to_string(),
+                            content: content.to_string(),
+                        });
+                        ctx.request_repaint();
                     }
                 }
                 _ => {}

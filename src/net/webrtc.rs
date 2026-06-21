@@ -185,14 +185,6 @@ pub async fn run(
                                     // If our username is lexicographically smaller, we initiate.
                                     if username < peer {
                                         log::info!("[webrtc] Initiating WebRTC offer to {}", peer);
-                                let config = str0m::channel::ChannelConfig {
-                                    label: "chat".to_string(),
-                                    ordered: true,
-                                    reliability: Default::default(),
-                                    protocol: "".to_string(),
-                                    negotiated: None,
-                                };
-                                let _ch = rtc.direct_api().create_data_channel(config);
                                 
                                 let change = rtc.sdp_api();
                                 if let Some((offer, pending)) = change.apply() {
@@ -250,13 +242,7 @@ pub async fn run(
                             break;
                         }
                         UiCommand::SendMessage(content) => {
-                            if let Some(cid) = data_channel {
-                                if let Some(mut ch) = rtc.channel(cid) {
-                                    let _ = ch.write(true, content.as_bytes());
-                                }
-                            } else {
-                                log::warn!("[webrtc] No data channel open to send message");
-                            }
+                            let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastMessage(content));
                         }
                         UiCommand::ToggleVoice(active) => {
                             mic_active = active;
