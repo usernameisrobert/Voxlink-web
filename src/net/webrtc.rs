@@ -175,11 +175,16 @@ pub async fn run(
                                 log::info!("[webrtc] We joined successfully. Broadcasting presence.");
                                 let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastPeerJoin);
                             } else {
-                                log::info!("[webrtc] Peer {} joined", peer);
-                                active_peer = Some(peer.clone());
-                                // If our username is lexicographically smaller, we initiate.
-                                if username < peer {
-                                    log::info!("[webrtc] Initiating WebRTC offer to {}", peer);
+                                if Some(&peer) != active_peer.as_ref() {
+                                    log::info!("[webrtc] Peer {} joined or was discovered", peer);
+                                    active_peer = Some(peer.clone());
+                                    
+                                    // Announce our presence back so the new peer discovers us!
+                                    let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastPeerJoin);
+                                    
+                                    // If our username is lexicographically smaller, we initiate.
+                                    if username < peer {
+                                        log::info!("[webrtc] Initiating WebRTC offer to {}", peer);
                                 let config = str0m::channel::ChannelConfig {
                                     label: "chat".to_string(),
                                     ordered: true,
@@ -195,6 +200,7 @@ pub async fn run(
                                     let sdp = serde_json::to_string(&offer).unwrap();
                                     let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::SendOffer { to: peer, sdp });
                                 }
+                                    }
                                 }
                             }
                         }
