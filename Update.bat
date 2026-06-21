@@ -5,16 +5,16 @@ echo ║        VoxLink Updater v1.0          ║
 echo ╚══════════════════════════════════════╝
 echo.
 
-echo [1/2] Checking for updates...
+echo [1/3] Checking for updates...
 git pull
 if %ERRORLEVEL% neq 0 (
     echo.
-    echo WARNING: Could not check for updates. Continuing with local version...
+    echo WARNING: Could not pull updates. Continuing with local version...
     echo.
 )
 
 echo.
-echo [2/2] Building VoxLink (Release)...
+echo [2/3] Building VoxLink (Release)...
 cargo build --bin voxlink --release
 
 if %ERRORLEVEL% neq 0 (
@@ -27,8 +27,12 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
+echo [3/3] Installing...
+copy /Y "target\release\voxlink.exe" "VoxLink.exe" >nul
+
+echo.
 echo ════════════════════════════════════════
 echo   Update complete!
-echo   Run VoxLink from: target\release\voxlink.exe
+echo   Launch VoxLink.exe to start chatting.
 echo ════════════════════════════════════════
 pause
