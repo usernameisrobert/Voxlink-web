@@ -133,17 +133,23 @@ fn render_sidebar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.add_space(12.0);
         });
 
-    // Push bottom bar to the very bottom
+    // Push bottom bar to the very bottom, minus some padding
     let remaining = ui.available_height() - bottom_h;
-    if remaining > 0.0 {
-        ui.add_space(remaining);
+    if remaining > 8.0 {
+        ui.add_space(remaining - 8.0);
+    } else {
+        ui.add_space(8.0);
     }
 
-    Frame::default()
-        .fill(theme::HEADER_BG)
-        .inner_margin(Margin::symmetric(10i8, 10i8))
-        .stroke(egui::Stroke::new(1.0, theme::SEPARATOR))
+    egui::Frame::NONE
+        .inner_margin(Margin::symmetric(8i8, 0i8))
         .show(ui, |ui| {
+            Frame::default()
+                .fill(theme::HEADER_BG)
+                .corner_radius(CornerRadius::same(8u8))
+                .inner_margin(Margin::symmetric(10i8, 10i8))
+                .stroke(egui::Stroke::new(1.0, theme::SEPARATOR))
+                .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
                 if components::voice_toggle_button(ui, state.voice_active) {
@@ -166,11 +172,17 @@ fn render_sidebar(ui: &mut egui::Ui, state: &mut AppState) {
                         ui.label(
                             RichText::new(&state.username).size(13.0).color(Color32::WHITE).strong(),
                         );
-                        ui.label(
-                            RichText::new(if state.voice_active { "🟢 In voice" } else { "● Online" })
-                                .size(11.0)
-                                .color(theme::TEXT_MUTED),
-                        );
+                        ui.horizontal(|ui| {
+                            let color = if state.voice_active { theme::GREEN_ONLINE } else { theme::TEXT_PRIMARY };
+                            let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+                            ui.painter().circle_filled(rect.center(), 4.0, color);
+                            ui.add_space(2.0);
+                            ui.label(
+                                RichText::new(if state.voice_active { "In voice" } else { "Online" })
+                                    .size(11.0)
+                                    .color(theme::TEXT_MUTED),
+                            );
+                        });
                     });
                 }).response;
                 
@@ -181,6 +193,7 @@ fn render_sidebar(ui: &mut egui::Ui, state: &mut AppState) {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
             });
+        });
         });
 }
 
@@ -279,11 +292,9 @@ fn render_message_area(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppSt
             ui.add_space(8.0);
         });
 
-    // Input bar
-    Frame::default()
-        .fill(theme::DARK_BG)
-        .inner_margin(Margin::symmetric(16i8, 10i8))
-        .stroke(egui::Stroke::new(1.0, theme::SEPARATOR))
+    // Input bar wrapper to add padding from the edges
+    egui::Frame::NONE
+        .inner_margin(Margin { left: 16, right: 16, top: 8, bottom: 24 })
         .show(ui, |ui| {
             render_input_bar(ctx, ui, state);
         });
@@ -305,7 +316,8 @@ fn render_input_bar(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppState
                         .id(input_id)
                         .hint_text("Message #general…")
                         .desired_width(avail_w)
-                        .font(egui::TextStyle::Body),
+                        .font(egui::FontId::proportional(15.0))
+                        .frame(egui::Frame::NONE),
                 );
 
                 if response.lost_focus() && ctx.input(|i| i.key_pressed(Key::Enter)) {
