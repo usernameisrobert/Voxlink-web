@@ -81,7 +81,7 @@ fn render_system_message(ui: &mut Ui, msg: &ChatMessage) {
     ui.horizontal(|ui| {
         ui.add_space(16.0);
         ui.label(
-            RichText::new("→")
+            RichText::new(">")
                 .size(13.0)
                 .color(theme::TEXT_SYSTEM)
                 .strong(),

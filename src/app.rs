@@ -158,7 +158,7 @@ impl AppState {
             }
 
             NetEvent::Error(msg) => {
-                self.push_system(format!("⚠ Signaling error: {}", msg));
+                self.push_system(format!("Signaling error: {}", msg));
             }
         }
     }

@@ -408,7 +408,7 @@ fn poll_media_upload(ctx: &egui::Context, state: &mut AppState) {
                 }
             }
             Err(e) => {
-                state.push_system(format!("⚠ Media upload failed: {}", e));
+                state.push_system(format!("Media upload failed: {}", e));
             }
         }
         ctx.request_repaint();
