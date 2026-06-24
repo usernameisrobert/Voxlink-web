@@ -42,7 +42,8 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 # ----------------------------------------------------------------------------------
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger        = "0.11"
-tokio             = { version = "1", features = ["full"] }
+[dependencies]
+tokio             = { version = "1", features = ["sync", "macros", "rt"] }
 tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
 futures-util      = "0.3"
 uuid              = { version = "1", features = ["v4"] }
