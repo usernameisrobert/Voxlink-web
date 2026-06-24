@@ -18,7 +18,7 @@ jobs:
   build-and-deploy:
     environment:
       name: github-pages
-      url: ${{ steps:deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -53,13 +53,13 @@ jobs:
           mkdir -p dist
           
           # Emscripten generates your app artifacts inside target/
-          # Replace 'your_app_name' with the name defined in your Cargo.toml
-          cp target/wasm32-unknown-emscripten/release/voxlink.js dist/
-          cp target/wasm32-unknown-emscripten/release/voxlink.wasm dist/
+          # Remember to replace 'your_app_name' with the binary name from your Cargo.toml
+          cp target/wasm32-unknown-emscripten/release/your_app_name.js dist/
+          cp target/wasm32-unknown-emscripten/release/your_app_name.wasm dist/
           
           # Emscripten builds an HTML wrapper file. 
           # We rename it to index.html so GitHub Pages loads it automatically.
-          cp target/wasm32-unknown-emscripten/release/voxlink.html dist/index.html
+          cp target/wasm32-unknown-emscripten/release/your_app_name.html dist/index.html
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
