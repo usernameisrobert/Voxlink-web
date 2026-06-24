@@ -51,9 +51,12 @@ impl VoxLinkApp {
         self.state.net_rx = Some(net_rx);
         self.state.cmd_tx = Some(cmd_tx);
 
-        let username   = self.state.username.clone();
-        let avatar_url = self.state.session.as_ref().and_then(|s| s.avatar_url.clone());
-        self.tokio_rt.spawn(net::webrtc::run(username, avatar_url, net_tx, cmd_rx, ctx));
+        let username    = self.state.username.clone();
+        let avatar_url  = self.state.session.as_ref().and_then(|s| s.avatar_url.clone());
+        let description = self.state.session.as_ref().and_then(|s| {
+            if s.description.is_empty() { None } else { Some(s.description.clone()) }
+        });
+        self.tokio_rt.spawn(net::webrtc::run(username, avatar_url, description, net_tx, cmd_rx, ctx));
 
         log::info!("[app] Signaling task spawned");
     }
@@ -193,11 +196,14 @@ impl AppState {
                 }
             }
 
-            NetEvent::ProfileUpdated { from, new_username, avatar_url } => {
+            NetEvent::ProfileUpdated { from, new_username, avatar_url, description } => {
                 if let Some(peer) = self.peers.iter_mut().find(|p| p.username == from) {
                     peer.username = new_username;
                     if avatar_url.is_some() {
                         peer.avatar_url = avatar_url;
+                    }
+                    if description.is_some() {
+                        peer.description = description;
                     }
                 }
             }
@@ -208,16 +214,20 @@ impl AppState {
                 self.peers.clear();
             }
 
-            NetEvent::PeerJoined { from, avatar_url } => {
+            NetEvent::PeerJoined { from, avatar_url, description } => {
                 if let Some(peer) = self.peers.iter_mut().find(|p| p.username == from) {
-                    // Already known — update avatar if we now have one.
+                    // Already known — update avatar/description if we now have them.
                     if avatar_url.is_some() {
                         peer.avatar_url = avatar_url;
+                    }
+                    if description.is_some() {
+                        peer.description = description;
                     }
                 } else {
                     self.peers.push(PeerInfo {
                         username:    from.clone(),
                         avatar_url,
+                        description,
                         in_voice:    false,
                         is_speaking: false,
                         is_muted:    false,

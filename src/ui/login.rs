@@ -216,22 +216,23 @@ fn commit_auth(state: &mut AppState, ctx: &egui::Context) {
         match result {
             Ok(auth_res) => {
                 // If it's sign in, we also need to fetch their profile to get their username and avatar
-                let (uname, avatar) = if !is_registering {
+                let (uname, avatar, desc) = if !is_registering {
                     match supabase::get_profile(&auth_res.user.id, &auth_res.access_token) {
-                        Ok(prof) => (prof.username, prof.avatar_url),
-                        Err(_) => (email.clone(), None) // Fallback if no profile
+                        Ok(prof) => (prof.username, prof.avatar_url, prof.description),
+                        Err(_)   => (email.clone(), None, String::new()) // Fallback if no profile
                     }
                 } else {
-                    (username, None)
+                    (username, None, String::new())
                 };
 
                 let session = Session {
-                    access_token: auth_res.access_token,
+                    access_token:  auth_res.access_token,
                     refresh_token: auth_res.refresh_token,
-                    user_id: auth_res.user.id,
+                    user_id:       auth_res.user.id,
                     email,
-                    username: uname,
-                    avatar_url: avatar,
+                    username:    uname,
+                    avatar_url:  avatar,
+                    description: desc,
                 };
                 let _ = tx.send(Ok(session));
             }

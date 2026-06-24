@@ -12,6 +12,57 @@ use directories::ProjectDirs;
 use std::fs;
 use std::path::PathBuf;
 
+// ── ThemeOverride ─────────────────────────────────────────────────────────────
+
+/// Client-side visual customization — stored in theme.json in the config dir.
+/// All fields are Option<[u8; 4]> (RGBA). None means use the app default.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeOverride {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sidebar_bg: Option<[u8; 4]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo_bg: Option<[u8; 4]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo_text: Option<[u8; 4]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_bg: Option<[u8; 4]>,
+    /// Also drives the "+" icon color.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_text: Option<[u8; 4]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_header_text: Option<[u8; 4]>,
+}
+
+impl ThemeOverride {
+    /// Convert an RGBA byte array to egui Color32.
+    pub fn c32(v: [u8; 4]) -> egui::Color32 {
+        egui::Color32::from_rgba_unmultiplied(v[0], v[1], v[2], v[3])
+    }
+
+    pub fn load() -> Self {
+        if let Some(proj_dirs) = ProjectDirs::from("com", "VoxLink", "VoxLinkApp") {
+            let path = proj_dirs.config_dir().join("theme.json");
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(parsed) = serde_json::from_str(&content) {
+                    return parsed;
+                }
+            }
+        }
+        Self::default()
+    }
+
+    pub fn save(&self) {
+        if let Some(proj_dirs) = ProjectDirs::from("com", "VoxLink", "VoxLinkApp") {
+            let dir = proj_dirs.config_dir();
+            let _ = fs::create_dir_all(dir);
+            let path = dir.join("theme.json");
+            if let Ok(content) = serde_json::to_string_pretty(self) {
+                let _ = fs::write(path, content);
+            }
+        }
+    }
+}
+
 // ── Routing ──────────────────────────────────────────────────────────────────
 
 /// Which top-level screen the app is currently showing.
@@ -149,6 +200,7 @@ pub fn unix_now() -> u64 {
 pub struct PeerInfo {
     pub username: String,
     pub avatar_url: Option<String>,
+    pub description: Option<String>,
     /// Whether this peer has joined the voice channel.
     pub in_voice: bool,
     /// Whether this peer is currently producing audio above the speaking threshold.
@@ -169,6 +221,8 @@ pub struct Session {
     pub email: String,
     pub username: String,
     pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub description: String,
 }
 
 impl Session {
@@ -208,7 +262,7 @@ impl Session {
 #[allow(dead_code)] // wired in Phase 2
 pub enum NetEvent {
     /// A new peer joined the signaling channel (avatar_url may be None for legacy clients).
-    PeerJoined { from: String, avatar_url: Option<String> },
+    PeerJoined { from: String, avatar_url: Option<String>, description: Option<String> },
     /// A peer disconnected.
     PeerLeft(String),
     /// A text or media message was received from a peer.
@@ -222,7 +276,7 @@ pub enum NetEvent {
     /// A peer's voice state changed (speaking, muted, joined/left voice).
     VoiceStateUpdate { from: String, speaking: bool, muted: bool, in_voice: bool },
     /// A peer changed their display name or avatar.
-    ProfileUpdated { from: String, new_username: String, avatar_url: Option<String> },
+    ProfileUpdated { from: String, new_username: String, avatar_url: Option<String>, description: Option<String> },
 }
 
 /// Commands sent FROM the egui UI thread TO the async network task.
@@ -237,7 +291,7 @@ pub enum UiCommand {
     /// Mute (true) or unmute (false) the local microphone while remaining in voice.
     SetMuted(bool),
     /// User updated their display name or uploaded a new avatar; re-broadcast to all peers.
-    ProfileUpdated { new_username: String, avatar_url: Option<String> },
+    ProfileUpdated { new_username: String, avatar_url: Option<String>, description: Option<String> },
     Disconnect,
 }
 
@@ -271,6 +325,12 @@ pub struct AppState {
     pub show_profile_modal: bool,
     pub profile_in_progress: bool,
     pub profile_error: Option<String>,
+    /// Editable "About Me" description — mirrors session.description on load.
+    pub profile_description: String,
+    /// Username of the peer whose inspect card is currently open (None = closed).
+    pub inspected_peer: Option<String>,
+    /// Client-side visual customization — loaded from theme.json on startup.
+    pub theme_override: ThemeOverride,
 
     // ── Media Upload ──
     pub media_in_progress: bool,
@@ -361,6 +421,8 @@ impl Default for AppState {
             rx
         });
 
+        let profile_description = session.as_ref().map(|s| s.description.clone()).unwrap_or_default();
+
         let mut state = Self {
             screen: if session.is_some() { Screen::Chat } else { Screen::Login },
             is_registering: false,
@@ -376,6 +438,9 @@ impl Default for AppState {
             show_profile_modal: false,
             profile_in_progress: false,
             profile_error: None,
+            profile_description,
+            inspected_peer: None,
+            theme_override: ThemeOverride::load(),
             media_in_progress: false,
             media_rx: None,
             session_refresh_rx,

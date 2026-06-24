@@ -24,6 +24,8 @@ pub struct Profile {
     pub id: String,
     pub username: String,
     pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub description: String,
 }
 
 /// Exchange a refresh token for a fresh access + refresh token pair.
@@ -165,18 +167,19 @@ pub fn get_profile(user_id: &str, access_token: &str) -> Result<Profile> {
     profiles.into_iter().next().context("Profile not found")
 }
 
-pub fn update_profile(user_id: &str, access_token: &str, username: &str, avatar_url: Option<&str>) -> Result<()> {
+pub fn update_profile(user_id: &str, access_token: &str, username: &str, avatar_url: Option<&str>, description: &str) -> Result<()> {
     let client = Client::new();
     let url = format!("{}/rest/v1/profiles?id=eq.{}&apikey={}", BASE_URL, user_id, ANON_KEY);
-    
+
     let mut body = json!({
         "username": username,
+        "description": description,
     });
-    
+
     if let Some(url) = avatar_url {
         body["avatar_url"] = json!(url);
     }
-    
+
     client.patch(&url)
         .header("apikey", ANON_KEY)
         .header("Authorization", format!("Bearer {}", access_token))
@@ -185,7 +188,7 @@ pub fn update_profile(user_id: &str, access_token: &str, username: &str, avatar_
         .json(&body)
         .send()?
         .error_for_status()?;
-        
+
     Ok(())
 }
 

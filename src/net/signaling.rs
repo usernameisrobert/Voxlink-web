@@ -17,13 +17,13 @@ const HEARTBEAT_S: u64 = 25;
 pub enum SigCmd {
     SendOffer { to: String, sdp: String },
     SendAnswer { to: String, sdp: String },
-    BroadcastPeerJoin { avatar_url: Option<String> },
+    BroadcastPeerJoin { avatar_url: Option<String>, description: Option<String> },
     BroadcastMessage(String),
     BroadcastMedia { caption: String, url: String, kind: String, filename: String },
     /// Broadcast this user's microphone/voice state to all peers.
     BroadcastVoiceState { speaking: bool, muted: bool, in_voice: bool },
     /// Broadcast a display-name / avatar change so peers can update their peer list in real time.
-    BroadcastProfileUpdate { new_username: String, avatar_url: Option<String> },
+    BroadcastProfileUpdate { new_username: String, avatar_url: Option<String>, description: Option<String> },
     Disconnect,
 }
 
@@ -110,11 +110,12 @@ async fn connect_and_run(
                 if let Some(cmd) = cmd_opt {
                     match cmd {
                         SigCmd::Disconnect => return Ok(true),
-                        SigCmd::BroadcastPeerJoin { avatar_url } => {
+                        SigCmd::BroadcastPeerJoin { avatar_url, description } => {
                             let topic = format!("realtime:{}", CHANNEL);
                             let broadcast = make_broadcast(&topic, "peer_join", json!({
-                                "from":       username,
-                                "avatar_url": avatar_url,
+                                "from":        username,
+                                "avatar_url":  avatar_url,
+                                "description": description,
                             }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
@@ -165,12 +166,13 @@ async fn connect_and_run(
                             }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
-                        SigCmd::BroadcastProfileUpdate { new_username, avatar_url } => {
+                        SigCmd::BroadcastProfileUpdate { new_username, avatar_url, description } => {
                             let topic = format!("realtime:{}", CHANNEL);
                             let broadcast = make_broadcast(&topic, "profile_update", json!({
                                 "from":         username,
                                 "new_username": new_username,
                                 "avatar_url":   avatar_url,
+                                "description":  description,
                             }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
@@ -219,10 +221,12 @@ fn handle_incoming(
 
             match b_event {
                 "peer_join" => {
-                    let avatar_url = b_payload["avatar_url"].as_str().map(str::to_owned);
+                    let avatar_url  = b_payload["avatar_url"].as_str().map(str::to_owned);
+                    let description = b_payload["description"].as_str().map(str::to_owned);
                     let _ = net_tx.send(NetEvent::PeerJoined {
                         from: from.to_string(),
                         avatar_url,
+                        description,
                     });
                     let _ = webrtc_tx.send(SignalingMsg::PeerJoined(from.to_string()));
                     ctx.request_repaint();
@@ -271,11 +275,13 @@ fn handle_incoming(
                 "profile_update" => {
                     let new_username = b_payload["new_username"].as_str()
                         .unwrap_or(from).to_owned();
-                    let avatar_url = b_payload["avatar_url"].as_str().map(str::to_owned);
+                    let avatar_url  = b_payload["avatar_url"].as_str().map(str::to_owned);
+                    let description = b_payload["description"].as_str().map(str::to_owned);
                     let _ = net_tx.send(NetEvent::ProfileUpdated {
                         from: from.to_string(),
                         new_username,
                         avatar_url,
+                        description,
                     });
                     ctx.request_repaint();
                 }
