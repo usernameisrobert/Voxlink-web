@@ -1,0 +1,71 @@
+name: Emscripten Rust Web Port
+
+on:
+  push:
+    branches:
+      - main # Change to master if your default branch is master
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps:deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Emscripten SDK (emsdk)
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+          echo "$(pwd)" >> $GITHUB_PATH
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-emscripten
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Build with Emscripten
+        run: |
+          # Source emsdk environment variables so cargo can find emcc
+          source ./emsdk/emsdk_env.sh
+          
+          # Build your desktop app for the Emscripten target
+          cargo build --release --target wasm32-unknown-emscripten
+
+      - name: Prepare Pages Bundle
+        run: |
+          mkdir -p dist
+          
+          # Emscripten generates your app artifacts inside target/
+          # Replace 'your_app_name' with the name defined in your Cargo.toml
+          cp target/wasm32-unknown-emscripten/release/your_app_name.js dist/
+          cp target/wasm32-unknown-emscripten/release/your_app_name.wasm dist/
+          
+          # Emscripten builds an HTML wrapper file. 
+          # We rename it to index.html so GitHub Pages loads it automatically.
+          cp target/wasm32-unknown-emscripten/release/your_app_name.html dist/index.html
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
