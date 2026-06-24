@@ -4,7 +4,7 @@
 
 use egui::{Color32, CornerRadius, FontId, Painter, Pos2, Rect, Response, RichText, Ui, Vec2};
 
-use crate::state::{ChatMessage, MessageKind};
+use crate::state::{AppState, ChatMessage, MessageKind};
 use super::theme;
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -312,6 +312,65 @@ pub fn sidebar_user_row(
                 }
             });
         });
+}
+
+// ── Inspect Panel ─────────────────────────────────────────────────────────────
+
+pub fn render_inspect_panel(ctx: &egui::Context, state: &mut AppState) {
+    let username = match &state.inspected_peer {
+        Some(u) => u.clone(),
+        None => return,
+    };
+    // Build display info from session (if own) or peers list
+    let (avatar_url, description) = if username == state.username {
+        (
+            state.session.as_ref().and_then(|s| s.avatar_url.clone()),
+            Some(state.profile_description.clone()),
+        )
+    } else {
+        let peer = state.peers.iter().find(|p| p.username == username);
+        (
+            peer.and_then(|p| p.avatar_url.clone()),
+            peer.and_then(|p| p.description.clone()),
+        )
+    };
+
+    let mut open = true;
+    egui::Window::new("User Profile")
+        .id(egui::Id::new("inspect_panel"))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .anchor(egui::Align2::LEFT_TOP, [theme::SIDEBAR_WIDTH + 8.0, 80.0])
+        .frame(egui::Frame::window(&ctx.style()).fill(theme::SIDEBAR_BG).inner_margin(16.0))
+        .show(ctx, |ui| {
+            ui.set_min_width(260.0);
+            ui.set_max_width(300.0);
+            ui.horizontal(|ui| {
+                draw_avatar(ui, &username, avatar_url.as_deref(), 56.0);
+                ui.add_space(12.0);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(&username).size(16.0).color(Color32::WHITE).strong());
+                    ui.label(RichText::new("Online").size(11.0).color(theme::GREEN_ONLINE));
+                });
+            });
+            if let Some(desc) = &description {
+                if !desc.is_empty() {
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+                    ui.label(RichText::new("About Me").size(11.0).color(theme::TEXT_MUTED).strong());
+                    ui.add_space(4.0);
+                    ui.add(
+                        egui::Label::new(RichText::new(desc).size(13.0).color(theme::TEXT_PRIMARY))
+                            .wrap_mode(egui::TextWrapMode::Wrap),
+                    );
+                }
+            }
+        });
+    if !open {
+        state.inspected_peer = None;
+    }
 }
 
 // ── Voice Toggle ──────────────────────────────────────────────────────────────

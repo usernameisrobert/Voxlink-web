@@ -5,17 +5,18 @@
 use egui::{Color32, CornerRadius, Frame, Key, Margin, RichText, ScrollArea, Vec2};
 use std::thread;
 
-use crate::state::{AppState, MessageKind};
+use crate::state::{AppState, MessageKind, ThemeOverride};
 use super::{components, theme, updater as update_ui};
 
 #[allow(deprecated)] // egui 0.34: Panel::show still works, show_inside() is new preferred API
 pub fn render(ctx: &egui::Context, state: &mut AppState) {
     poll_media_upload(ctx, state);
     // ── 1. Left sidebar panel ─────────────────────────────────────────────────
+    let sidebar_fill = state.theme_override.sidebar_bg.map(ThemeOverride::c32).unwrap_or(theme::SIDEBAR_BG);
     egui::SidePanel::left("sidebar")
         .exact_size(theme::SIDEBAR_WIDTH)
         .resizable(false)
-        .frame(Frame::default().fill(theme::SIDEBAR_BG).inner_margin(Margin::same(0i8)))
+        .frame(Frame::default().fill(sidebar_fill).inner_margin(Margin::same(0i8)))
         .show(ctx, |ui| {
             render_sidebar(ui, state);
         });
@@ -67,14 +68,19 @@ pub fn render(ctx: &egui::Context, state: &mut AppState) {
         });
 
     crate::ui::profile::render_modal(ctx, state);
+    components::render_inspect_panel(ctx, state);
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 fn render_sidebar(ui: &mut egui::Ui, state: &mut AppState) {
+    let sidebar_bg  = state.theme_override.sidebar_bg.map(ThemeOverride::c32).unwrap_or(theme::SIDEBAR_BG);
+    let logo_bg     = state.theme_override.logo_bg.map(ThemeOverride::c32).unwrap_or(theme::HEADER_BG);
+    let logo_text   = state.theme_override.logo_text.map(ThemeOverride::c32).unwrap_or(Color32::WHITE);
+
     // ── Server / app header ──────────────────────────────────────────────────
     Frame::default()
-        .fill(theme::HEADER_BG)
+        .fill(logo_bg)
         .inner_margin(Margin::symmetric(16i8, 14i8))
         .stroke(egui::Stroke::new(1.0, theme::SEPARATOR))
         .show(ui, |ui| {
@@ -82,16 +88,21 @@ fn render_sidebar(ui: &mut egui::Ui, state: &mut AppState) {
             ui.horizontal(|ui| {
                 let (lr, _) = ui.allocate_exact_size(Vec2::splat(22.0), egui::Sense::hover());
                 if ui.is_rect_visible(lr) {
-                    ui.painter().circle_filled(lr.center(), 11.0, theme::BLURPLE);
-                    ui.painter().text(
-                        lr.center(), egui::Align2::CENTER_CENTER, "V",
-                        egui::FontId::proportional(13.0), Color32::WHITE,
-                    );
+                    // Rounded-rect background with vector "V" — distinctive app icon shape
+                    let rect = egui::Rect::from_center_size(lr.center(), Vec2::splat(22.0));
+                    ui.painter().rect_filled(rect, egui::CornerRadius::same(6u8), theme::BLURPLE);
+                    let tl  = rect.min + Vec2::new(4.5, 5.0);
+                    let tr  = rect.min + Vec2::new(17.5, 5.0);
+                    let bot = egui::pos2(rect.center().x, rect.max.y - 5.0);
+                    ui.painter().line_segment([tl, bot], egui::Stroke::new(2.5, logo_text));
+                    ui.painter().line_segment([tr, bot], egui::Stroke::new(2.5, logo_text));
                 }
                 ui.add_space(6.0);
-                ui.label(RichText::new("VoxLink").size(15.0).color(Color32::WHITE).strong());
+                ui.label(RichText::new("VoxLink").size(15.0).color(logo_text).strong());
             });
         });
+
+    let _ = sidebar_bg; // used by the SidePanel fill in render()
 
     // ── Scrollable channel + member list ─────────────────────────────────────
     let scroll_max = (ui.available_height() - theme::SIDEBAR_BOTTOM_H).max(40.0);
@@ -128,10 +139,23 @@ fn render_sidebar(ui: &mut egui::Ui, state: &mut AppState) {
             let peers = state.peers.clone();
             for peer in &peers {
                 ui.add_space(2.0);
-                components::sidebar_user_row(
-                    ui, &peer.username, peer.avatar_url.as_deref(), false,
-                    peer.in_voice, peer.is_speaking, peer.is_muted,
+                let row_resp = ui.scope(|ui| {
+                    components::sidebar_user_row(
+                        ui, &peer.username, peer.avatar_url.as_deref(), false,
+                        peer.in_voice, peer.is_speaking, peer.is_muted,
+                    );
+                }).response;
+                let click_resp = ui.interact(
+                    row_resp.rect,
+                    egui::Id::new(("inspect", peer.username.as_str())),
+                    egui::Sense::click(),
                 );
+                if click_resp.clicked() {
+                    state.inspected_peer = Some(peer.username.clone());
+                }
+                if click_resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
             }
             ui.add_space(12.0);
 
@@ -405,11 +429,12 @@ fn sidebar_channel_item(ui: &mut egui::Ui, name: &str, active: bool) {
 // ── Channel Header ────────────────────────────────────────────────────────────
 
 fn render_channel_header(ui: &mut egui::Ui, state: &AppState) {
+    let header_text = state.theme_override.channel_header_text.map(ThemeOverride::c32).unwrap_or(Color32::WHITE);
     // Frame inner_margin already provides vertical centering; just lay out horizontally.
     ui.horizontal(|ui| {
         ui.label(RichText::new("#").size(18.0).color(theme::TEXT_MUTED).strong());
         ui.add_space(4.0);
-        ui.label(RichText::new("general").size(15.0).color(Color32::WHITE).strong());
+        ui.label(RichText::new("general").size(15.0).color(header_text).strong());
         ui.label(RichText::new("|").size(16.0).color(theme::SEPARATOR));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(theme::SAFE_MARGIN);
@@ -486,9 +511,12 @@ fn render_message_area(_ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppS
 }
 
 fn render_input_bar(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppState) {
+    let input_bg   = state.theme_override.input_bg.map(ThemeOverride::c32).unwrap_or(theme::INPUT_BG);
+    let input_text = state.theme_override.input_text.map(ThemeOverride::c32);
+
     ui.horizontal(|ui| {
         Frame::default()
-            .fill(theme::INPUT_BG)
+            .fill(input_bg)
             .corner_radius(CornerRadius::same(8u8))
             .inner_margin(Margin { left: 10, right: 14, top: 10, bottom: 10 })
             .show(ui, |ui| {
@@ -498,10 +526,11 @@ fn render_input_bar(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppState
                     if state.media_in_progress {
                         ui.spinner();
                     } else {
+                        let icon_color = input_text.unwrap_or(theme::TEXT_MUTED);
                         // "+" is universally renderable; tooltip clarifies it's for attachments
                         let attach = ui.add(
                             egui::Button::new(
-                                RichText::new("+").size(20.0).color(theme::TEXT_MUTED).strong(),
+                                RichText::new("+").size(20.0).color(icon_color).strong(),
                             )
                             .fill(Color32::TRANSPARENT)
                             .stroke(egui::Stroke::NONE)
@@ -516,6 +545,12 @@ fn render_input_bar(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppState
                     // ── Text input ───────────────────────────────────────────
                     let input_id = egui::Id::new("message_input_field");
                     let avail_w  = ui.available_width();
+
+                    // Apply theme overrides for text color and bg
+                    let old_text_color = ui.visuals().override_text_color;
+                    ui.visuals_mut().override_text_color = input_text;
+                    ui.visuals_mut().extreme_bg_color    = input_bg;
+
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut state.message_input)
                             .id(input_id)
@@ -524,6 +559,10 @@ fn render_input_bar(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppState
                             .font(egui::FontId::proportional(15.0))
                             .frame(egui::Frame::NONE),
                     );
+
+                    // Restore defaults
+                    ui.visuals_mut().override_text_color = old_text_color;
+
                     if response.lost_focus() && ctx.input(|i| i.key_pressed(Key::Enter)) {
                         try_send_message(state);
                         ctx.memory_mut(|m| m.request_focus(input_id));
