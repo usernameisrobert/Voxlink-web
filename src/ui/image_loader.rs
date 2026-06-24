@@ -22,7 +22,9 @@ pub fn get_avatar_texture(ctx: &Context, url: &str) -> Option<TextureHandle> {
     if let Some(entry) = map.get(url) {
         match entry {
             CacheEntry::Loaded(tex) => return Some(tex.clone()),
-            _ => return None,
+            CacheEntry::Loading     => return None,
+            // Error entries are not retried here; call invalidate() to force a retry.
+            CacheEntry::Error       => return None,
         }
     }
 
@@ -35,14 +37,15 @@ pub fn get_avatar_texture(ctx: &Context, url: &str) -> Option<TextureHandle> {
     
     thread::spawn(move || {
         let result = fetch_and_decode(&url_clone);
-        
+
         let mut map = cache_clone.lock().unwrap();
         match result {
             Ok(img) => {
                 let tex = ctx_clone.load_texture(&url_clone, img, TextureOptions::default());
                 map.insert(url_clone, CacheEntry::Loaded(tex));
             }
-            Err(_) => {
+            Err(e) => {
+                log::warn!("[image_loader] Failed to load {}: {}", url_clone, e);
                 map.insert(url_clone, CacheEntry::Error);
             }
         }
@@ -52,8 +55,8 @@ pub fn get_avatar_texture(ctx: &Context, url: &str) -> Option<TextureHandle> {
     None
 }
 
-/// Remove a URL from the texture cache, forcing a re-fetch on the next access.
-/// Call after uploading a new avatar so the stale texture is not reused.
+/// Remove a URL from the texture cache (including error entries), forcing a re-fetch.
+/// Call after uploading a new avatar, or when a previously-failed URL should be retried.
 pub fn invalidate(url: &str) {
     if let Some(cache) = CACHE.get() {
         if let Ok(mut map) = cache.lock() {

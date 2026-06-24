@@ -17,6 +17,7 @@ pub enum SignalingMsg {
 
 pub async fn run(
     username: String,
+    avatar_url: Option<String>,
     net_tx: std::sync::mpsc::Sender<NetEvent>,
     mut cmd_rx: tokio::sync::mpsc::UnboundedReceiver<UiCommand>,
     ctx: egui::Context,
@@ -216,14 +217,18 @@ pub async fn run(
                         SignalingMsg::PeerJoined(peer) => {
                             if peer == username {
                                 log::info!("[webrtc] We joined successfully. Broadcasting presence.");
-                                let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastPeerJoin);
+                                let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastPeerJoin {
+                                    avatar_url: avatar_url.clone(),
+                                });
                             } else {
                                 if !known_peers.contains(&peer) {
                                     log::info!("[webrtc] Peer {} joined or was discovered", peer);
                                     known_peers.insert(peer.clone());
-                                    
-                                    // Announce presence so the new peer discovers us.
-                                    let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastPeerJoin);
+
+                                    // Announce presence so the new peer discovers us (includes our avatar).
+                                    let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastPeerJoin {
+                                        avatar_url: avatar_url.clone(),
+                                    });
                                     // Re-broadcast voice state so the new peer knows if we're in voice.
                                     if in_voice {
                                         let _ = sig_cmd_tx.send(crate::net::signaling::SigCmd::BroadcastVoiceState {

@@ -17,7 +17,7 @@ const HEARTBEAT_S: u64 = 25;
 pub enum SigCmd {
     SendOffer { to: String, sdp: String },
     SendAnswer { to: String, sdp: String },
-    BroadcastPeerJoin,
+    BroadcastPeerJoin { avatar_url: Option<String> },
     BroadcastMessage(String),
     BroadcastMedia { caption: String, url: String, kind: String, filename: String },
     /// Broadcast this user's microphone/voice state to all peers.
@@ -108,10 +108,11 @@ async fn connect_and_run(
                 if let Some(cmd) = cmd_opt {
                     match cmd {
                         SigCmd::Disconnect => return Ok(true),
-                        SigCmd::BroadcastPeerJoin => {
+                        SigCmd::BroadcastPeerJoin { avatar_url } => {
                             let topic = format!("realtime:{}", CHANNEL);
                             let broadcast = make_broadcast(&topic, "peer_join", json!({
-                                "from": username,
+                                "from":       username,
+                                "avatar_url": avatar_url,
                             }), &mut ref_count);
                             send_text(&mut ws_stream, &broadcast).await?;
                         }
@@ -207,7 +208,11 @@ fn handle_incoming(
 
             match b_event {
                 "peer_join" => {
-                    let _ = net_tx.send(NetEvent::PeerJoined(from.to_string()));
+                    let avatar_url = b_payload["avatar_url"].as_str().map(str::to_owned);
+                    let _ = net_tx.send(NetEvent::PeerJoined {
+                        from: from.to_string(),
+                        avatar_url,
+                    });
                     let _ = webrtc_tx.send(SignalingMsg::PeerJoined(from.to_string()));
                     ctx.request_repaint();
                 }

@@ -51,8 +51,9 @@ impl VoxLinkApp {
         self.state.net_rx = Some(net_rx);
         self.state.cmd_tx = Some(cmd_tx);
 
-        let username = self.state.username.clone();
-        self.tokio_rt.spawn(net::webrtc::run(username, net_tx, cmd_rx, ctx));
+        let username   = self.state.username.clone();
+        let avatar_url = self.state.session.as_ref().and_then(|s| s.avatar_url.clone());
+        self.tokio_rt.spawn(net::webrtc::run(username, avatar_url, net_tx, cmd_rx, ctx));
 
         log::info!("[app] Signaling task spawned");
     }
@@ -184,18 +185,23 @@ impl AppState {
                 self.peers.clear();
             }
 
-            NetEvent::PeerJoined(username) => {
-                if !self.peers.iter().any(|p| p.username == username) {
+            NetEvent::PeerJoined { from, avatar_url } => {
+                if let Some(peer) = self.peers.iter_mut().find(|p| p.username == from) {
+                    // Already known — update avatar if we now have one.
+                    if avatar_url.is_some() {
+                        peer.avatar_url = avatar_url;
+                    }
+                } else {
                     self.peers.push(PeerInfo {
-                        username: username.clone(),
-                        avatar_url: None,
-                        in_voice: false,
+                        username:    from.clone(),
+                        avatar_url,
+                        in_voice:    false,
                         is_speaking: false,
-                        is_muted: false,
-                        peer_id: None,
+                        is_muted:    false,
+                        peer_id:     None,
                     });
+                    self.push_system(format!("{} joined the room.", from));
                 }
-                self.push_system(format!("{} joined the room.", username));
             }
 
             NetEvent::PeerLeft(username) => {

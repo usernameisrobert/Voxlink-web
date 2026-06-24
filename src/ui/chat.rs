@@ -472,7 +472,7 @@ fn render_message_area(ctx: &egui::Context, ui: &mut egui::Ui, state: &mut AppSt
 
     // Input bar wrapper to add padding from the edges
     egui::Frame::NONE
-        .inner_margin(Margin { left: 16, right: 16, top: 8, bottom: 24 })
+        .inner_margin(Margin { left: 16, right: 16, top: 6, bottom: 8 })
         .show(ui, |ui| {
             render_input_bar(ctx, ui, state);
         });

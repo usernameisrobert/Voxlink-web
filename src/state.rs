@@ -191,8 +191,8 @@ impl Session {
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // wired in Phase 2
 pub enum NetEvent {
-    /// A new peer joined the signaling channel.
-    PeerJoined(String),
+    /// A new peer joined the signaling channel (avatar_url may be None for legacy clients).
+    PeerJoined { from: String, avatar_url: Option<String> },
     /// A peer disconnected.
     PeerLeft(String),
     /// A text or media message was received from a peer.
